@@ -1,0 +1,150 @@
+import time
+
+# ---------------- PARITY CHECK ----------------
+
+def generate_parity(data):
+    return str(data.count("1") % 2)
+
+
+def check_parity(data, parity):
+    return (data.count("1") + int(parity)) % 2 == 0
+
+
+# ---------------- CHECKSUM ----------------
+
+def calculate_checksum(data):
+    padded = data + "0" * ((8 - len(data) % 8) % 8)
+    total = 0
+
+    for i in range(0, len(padded), 8):
+        total += int(padded[i:i+8], 2)
+
+    while total > 255:
+        total = (total & 255) + (total >> 8)
+
+    return format((~total) & 255, "08b")
+
+
+def check_checksum(data, checksum):
+    padded = data + "0" * ((8 - len(data) % 8) % 8)
+    total = int(checksum, 2)
+
+    for i in range(0, len(padded), 8):
+        total += int(padded[i:i+8], 2)
+
+    while total > 255:
+        total = (total & 255) + (total >> 8)
+
+    return total == 255
+
+
+# ---------------- CRC ----------------
+
+def crc_remainder(data, generator):
+    bits = list(data + "0" * (len(generator) - 1))
+    divisor = len(generator)
+
+    for i in range(len(data)):
+        if bits[i] == "1":
+            for j in range(divisor):
+                bits[i+j] = str(
+                    int(bits[i+j]) ^ int(generator[j])
+                )
+
+    return "".join(bits[-(divisor-1):])
+
+
+def check_crc(data, crc, generator):
+    bits = list(data + crc)
+    divisor = len(generator)
+
+    for i in range(len(data)):
+        if bits[i] == "1":
+            for j in range(divisor):
+                bits[i+j] = str(
+                    int(bits[i+j]) ^ int(generator[j])
+                )
+
+    return "1" not in bits[-(divisor-1):]
+
+
+# ---------------- ERROR INJECTION ----------------
+
+def inject_error(data):
+    bits = list(data)
+    bits[0] = "1" if bits[0] == "0" else "0"
+    return "".join(bits)
+
+
+# ---------------- MAIN PROGRAM ----------------
+
+total = 0
+success = 0
+failed = 0
+
+generator = "1011"
+
+print("====================================")
+print(" NETWORK ERROR DETECTION SYSTEM")
+print("====================================")
+
+while True:
+
+    data = input("\nEnter binary data: ")
+
+    if not data or any(bit not in "01" for bit in data):
+        print("Please enter valid binary data.")
+        continue
+
+    total += 1
+
+    print("\n--- SENDER DEVICE ---")
+    print("Original Data:", data)
+
+    parity = generate_parity(data)
+    checksum = calculate_checksum(data)
+    crc = crc_remainder(data, generator)
+
+    print("Generated Parity:", parity)
+    print("Generated Checksum:", checksum)
+    print("Generated CRC:", crc)
+
+    received = data
+
+    error = input("\nInject transmission error? (yes/no): ").lower()
+
+    if error == "yes":
+        received = inject_error(data)
+
+    print("\n--- RECEIVER DEVICE ---")
+    print("Received Data:", received)
+
+    p_result = check_parity(received, parity)
+    c_result = check_checksum(received, checksum)
+    crc_result = check_crc(received, crc, generator)
+
+    print("\n--- ERROR DETECTION RESULTS ---")
+    print("Parity Check:", "PASS" if p_result else "ERROR")
+    print("Checksum:", "PASS" if c_result else "ERROR")
+    print("CRC:", "PASS" if crc_result else "ERROR")
+
+    if p_result and c_result and crc_result:
+        print("\nTransmission Status: SUCCESS")
+        success += 1
+    else:
+        print("\nTransmission Status: FAILED")
+        failed += 1
+
+    print("\n--- PERFORMANCE REPORT ---")
+    print("Total Packets:", total)
+    print("Successful Packets:", success)
+    print("Failed Packets:", failed)
+    print("Success Rate:", round(success / total * 100, 2), "%")
+    print("Error Rate:", round(failed / total * 100, 2), "%")
+
+    choice = input("\nSend another packet? (yes/no): ").lower()
+
+    if choice != "yes":
+        break
+
+print("\nNetwork Monitoring Completed.")
